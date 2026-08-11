@@ -1,0 +1,31 @@
+# Deploy da API no Fly.io.  fly launch --no-deploy  →  fly secrets set ...  →  fly deploy
+app = "agenda-api"
+primary_region = "gru"          # São Paulo
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  APP_ENV = "prod"
+  PORT = "8000"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = false    # o scheduler de lembretes precisa ficar de pé
+  auto_start_machines = true
+  min_machines_running = 1      # dormir = lembrete não enviado
+
+  [[http_service.checks]]
+    grace_period = "20s"
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "/health/ready"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+
+[deploy]
+  release_command = "alembic upgrade head"

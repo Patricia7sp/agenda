@@ -1,0 +1,130 @@
+# Colocar em produção
+
+Objetivo: uma URL HTTPS estável para compartilhar com quem vai testar. Estável
+importa — cada endereço novo obriga a reinstalar o app no iPhone e refazer a
+permissão de notificação.
+
+Arquitetura: **frontend estático** (Cloudflare Pages ou Vercel) + **API com o
+scheduler** (Fly.io ou Railway) + **Postgres gerenciado** (Supabase ou Neon).
+Custo: R$0 a ~US$5/mês.
+
+O Fly.io hospeda somente a API. O frontend não é copiado para a imagem do backend;
+publique `frontend/dist` separadamente e configure `VITE_API_BASE_URL` com a URL da API.
+
+## O que só você pode fazer
+
+Criar contas e definir segredos exige suas credenciais — eu não faço isso por
+você. Os cinco passos abaixo são seus; o resto do repositório já está pronto.
+
+1. Criar as contas (Fly.io ou Railway · Cloudflare Pages ou Vercel · Supabase ou Neon).
+2. Criar o banco gerenciado e copiar a connection string.
+3. **Contratar um provedor de e-mail** — ver "O bloqueio real" abaixo.
+4. Definir os secrets no painel de cada serviço.
+5. Rodar `fly deploy` (ou conectar o repositório no painel).
+
+## O bloqueio real: sem e-mail, ninguém entra
+
+Em produção `APP_ENV=prod`, e aí o magic link **deixa de aparecer na tela** — ele
+só chega por e-mail. Sem `RESEND_API_KEY` ou SMTP configurado, nem você nem a
+pessoa que for testar conseguem fazer login. Resolva isso **antes** de compartilhar.
+
+O caminho mais rápido é o [Resend](https://resend.com): tier grátis de 3.000
+e-mails/mês, e para enviar de um domínio próprio é preciso verificar o domínio
+(alguns registros DNS). Sem domínio próprio, dá para começar com o remetente de
+testes do próprio Resend.
+
+## 1. Banco
+
+Crie um Postgres no Supabase ou Neon e pegue a URI. Troque o esquema para o driver
+que usamos:
+
+```
+postgresql+psycopg://usuario:senha@host:5432/postgres?sslmode=require
+```
+
+As migrações rodam sozinhas no deploy (`release_command` do [fly.toml](../backend/fly.toml)).
+
+## 2. API (Fly.io)
+
+```bash
+cd backend
+fly launch --no-deploy          # usa o fly.toml e o Dockerfile do repo
+```
+
+Gere as chaves VAPID **novas** para produção (não reaproveite as de dev):
+
+```bash
+docker compose run --rm backend python -m app.cli vapid
+```
+
+Defina os secrets:
+
+```bash
+fly secrets set \
+  DATABASE_URL="postgresql+psycopg://..." \
+  JWT_SECRET="$(openssl rand -base64 48)" \
+  VAPID_PUBLIC_KEY="..." \
+  VAPID_PRIVATE_KEY="..." \
+  VAPID_SUBJECT="mailto:seu@email.com" \
+  RESEND_API_KEY="re_..." \
+  MAIL_FROM="agenda@seudominio.com" \
+  FRONTEND_URL="https://agenda.pages.dev" \
+  CORS_ORIGINS="https://agenda.pages.dev" \
+  ALLOWED_EMAILS="seu-email@example.com"
+```
+
+```bash
+fly deploy
+```
+
+Confira: `https://agenda-api.fly.dev/health` deve responder
+`push_enabled: true`, `mail_enabled: true`, `scheduler_enabled: true`.
+O endpoint `https://agenda-api.fly.dev/health/ready` também precisa responder
+`{"status":"ready"}`; ele testa a conexão com o banco.
+
+**Atenção ao `auto_stop_machines`.** O `fly.toml` mantém a máquina sempre de pé
+de propósito: o scheduler roda dentro do processo da API, e máquina dormindo
+significa lembrete não enviado. Não ligue o auto-stop para economizar.
+
+## 3. Frontend (Cloudflare Pages)
+
+- Diretório raiz: `frontend`
+- Comando de build: `npm run build`
+- Diretório de saída: `dist`
+- Variável de ambiente: `VITE_API_BASE_URL=https://agenda-api.fly.dev`
+
+Depois do primeiro deploy, volte na API e ajuste `FRONTEND_URL` e `CORS_ORIGINS`
+para o domínio real que o Pages gerou.
+
+## 4. Antes de compartilhar — checklist
+
+- [ ] `/health` com `push_enabled`, `mail_enabled` e `scheduler_enabled` em `true`
+- [ ] `APP_ENV=prod` (a API se recusa a subir com `JWT_SECRET` fraco)
+- [ ] `ALLOWED_EMAILS` contém somente os e-mails autorizados
+- [ ] Login por e-mail funcionando de verdade: peça o link e confirme que chega
+- [ ] Instalar o app no seu iPhone pela URL de produção e ativar as notificações
+- [ ] Criar uma atividade com lembrete 2 minutos à frente, fechar o app e conferir
+- [ ] Abrir o app em modo avião e ver o dia carregar do cache
+
+## 5. O que enviar para quem vai testar
+
+A pessoa vai precisar de instruções — no iPhone, instalar não é opcional e a
+opção fica escondida. Sugestão de mensagem:
+
+> Abra este link **no Safari**: `https://…`
+> Toque em **Compartilhar** (ícone do meio da barra), role a lista para baixo e
+> escolha **Adicionar à Tela de Início**. Abra o app pelo ícone novo, entre com
+> seu e-mail (chega um link de acesso, sem senha) e, em **⚙ Ajustes**, toque em
+> **Ativar lembretes**.
+
+O próprio app cobre esse caminho: em aba do Safari no iOS ele mostra o passo a
+passo de instalação em vez de deixar a pessoa travada.
+
+## Limites conhecidos desta versão
+
+- **JWT no `localStorage`** — mantido para a PWA cross-domain, mas o callback remove o token da URL e o cache local é apagado ao trocar de usuário ou sair.
+- **Rate limit do magic link em memória** — com mais de um processo da API, cada um
+  conta o seu. Suficiente para uma instância; ao escalar, mover para Redis ou contar
+  em `login_token`.
+- **Sem recorrências** e **sem sincronização bidirecional offline** — a fila cobre
+  criação e conclusão, e conflitos resolvem por último-que-escreve.

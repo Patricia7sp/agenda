@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+/* Tokens de tema. Dark mode desde o início — é a "cara" do projeto (§6.1). */
+@theme {
+  --color-surface: #0f172a;
+  --color-surface-raised: #1e293b;
+  --color-border-subtle: #223049;
+  --color-ink: #e2e8f0;
+  --color-ink-muted: #94a3b8;
+
+  /* Cores de prioridade (§6.1) */
+  --color-priority-high: #ef4444;
+  --color-priority-attention: #f59e0b;
+  --color-priority-normal: #3b82f6;
+  --color-priority-low: #9ca3af;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}

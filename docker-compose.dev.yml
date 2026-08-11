@@ -1,0 +1,15 @@
+# Hot reload: monta o código do host por cima da imagem.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Requer que o diretório do projeto esteja na lista de file sharing do Docker
+# Desktop (Settings → Resources → File sharing). Fora dela, o Docker monta uma
+# pasta VAZIA sem avisar e o container sobe quebrado — por isso o bind mount
+# não faz parte do compose padrão.
+services:
+  backend:
+    volumes:
+      - ./backend:/app
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"

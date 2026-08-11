@@ -1,0 +1,40 @@
+[project]
+name = "agenda-backend"
+version = "0.1.0"
+description = "API do Assistente de Agenda Pessoal"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sqlmodel>=0.0.22",
+    "psycopg[binary]>=3.2",
+    "alembic>=1.14",
+    "pydantic-settings>=2.6",
+    "email-validator>=2.2",
+    "pyjwt>=2.10",
+    "pywebpush>=2.0",
+    "py-vapid>=1.9",
+    "httpx>=0.28",
+    "apscheduler>=3.11",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["app", "app.api", "app.api.v1", "app.core", "app.services"]
+
+[tool.setuptools.package-data]
+app = ["static/spike/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+filterwarnings = ["ignore::DeprecationWarning"]
