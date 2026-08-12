@@ -18,6 +18,15 @@ def test_magic_link_cria_usuario_e_nao_vaza_existencia(client, session):
     assert set(r.json()) == set(r2.json())
 
 
+def test_magic_link_e_desativado_em_producao(client, monkeypatch):
+    monkeypatch.setattr(settings, "app_env", "prod")
+
+    response = client.post("/api/v1/auth/magic-link", json={"email": "qualquer@exemplo.com"})
+
+    assert response.status_code == 410
+    assert response.json()["code"] == "magic_link_disabled"
+
+
 def test_google_login_cria_usuario_e_emite_jwt(client, session, monkeypatch):
     monkeypatch.setattr(settings, "google_client_id", "google-client-id")
     monkeypatch.setattr(settings, "allowed_emails", "google@exemplo.com")

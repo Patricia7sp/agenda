@@ -80,7 +80,16 @@ def _rate_limited(email: str) -> bool:
 
 @router.post("/magic-link", response_model=MagicLinkResponse)
 def request_magic_link(payload: MagicLinkRequest, session: SessionDep) -> MagicLinkResponse:
-    """Sempre 200 — não vaza a existência da conta."""
+    """Mantém o spike local, mas bloqueia envio de e-mail em produção."""
+    if not settings.is_dev:
+        raise HTTPException(
+            status.HTTP_410_GONE,
+            detail={
+                "detail": "Login por link desativado em produção. Use o Google.",
+                "code": "magic_link_disabled",
+            },
+        )
+
     email = str(payload.email).strip().casefold()
     if not settings.is_email_allowed(email):
         return MagicLinkResponse()
