@@ -123,9 +123,7 @@ passo de instalação em vez de deixar a pessoa travada.
 
 ## Limites conhecidos desta versão
 
-- **JWT no `localStorage`** — mantido para a PWA cross-domain, mas o callback remove o token da URL e o cache local é apagado ao trocar de usuário ou sair.
-- **Rate limit do magic link em memória** — com mais de um processo da API, cada um
-  conta o seu. Suficiente para uma instância; ao escalar, mover para Redis ou contar
-  em `login_token`.
+- **JWT no `localStorage`** — mantido para a PWA cross-domain; o cache local é apagado
+  ao trocar de usuário ou sair.
 - **Sem recorrências** e **sem sincronização bidirecional offline** — a fila cobre
   criação e conclusão, e conflitos resolvem por último-que-escreve.

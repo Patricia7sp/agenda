@@ -22,7 +22,7 @@ em iPhone real e o projeto segue como PWA (sem Capacitor).
 - ✅ Calendário mensal com indicadores de densidade
 - ✅ Offline: cache de leitura persistido e fila de criações/conclusões que sobe
   sozinha ao reconectar
-- ⬜ Deploy em produção — ver [guia](docs/deploy.md)
+- ✅ Deploy em produção — [frontend](https://agenda-4gh.pages.dev) + [API](https://agenda-api.fly.dev)
 
 ## Rodando o app
 
@@ -197,8 +197,8 @@ na primeira execução. O banco de desenvolvimento não é tocado.
 
 ## Segurança
 
-- Sem senha em lugar nenhum: magic link (token de 32 bytes, guardado hasheado em SHA-256,
-  uso único, 15 min) + JWT de 30 dias.
+- Login Google validado no backend pelo Client ID configurado; o frontend nunca recebe
+  client secret. A sessão da Agenda usa JWT de 30 dias.
 - Toda query é filtrada pelo `user_id` do token — multiusuário desde o dia 1.
 - Secrets só via env; `.env` está no `.gitignore` e `.env.example` fica completo.
 - Em produção, `ALLOWED_EMAILS` é obrigatório e o backend rejeita e-mails fora da allowlist antes de criar usuário ou token.
