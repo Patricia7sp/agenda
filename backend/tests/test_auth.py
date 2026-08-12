@@ -18,6 +18,45 @@ def test_magic_link_cria_usuario_e_nao_vaza_existencia(client, session):
     assert set(r.json()) == set(r2.json())
 
 
+def test_google_login_cria_usuario_e_emite_jwt(client, session, monkeypatch):
+    monkeypatch.setattr(settings, "google_client_id", "google-client-id")
+    monkeypatch.setattr(settings, "allowed_emails", "google@exemplo.com")
+    monkeypatch.setattr(
+        "app.api.v1.auth._google_claims",
+        lambda credential: {
+            "iss": "https://accounts.google.com",
+            "email": "google@exemplo.com",
+            "email_verified": True,
+            "name": "Pessoa Google",
+        },
+    )
+
+    response = client.post("/api/v1/auth/google", json={"credential": "a" * 20})
+
+    assert response.status_code == 200, response.text
+    assert response.json()["user"]["email"] == "google@exemplo.com"
+    assert response.json()["user"]["name"] == "Pessoa Google"
+    assert session.exec(select(User).where(User.email == "google@exemplo.com")).one()
+
+
+def test_google_login_rejeita_email_fora_da_allowlist(client, monkeypatch):
+    monkeypatch.setattr(settings, "google_client_id", "google-client-id")
+    monkeypatch.setattr(settings, "allowed_emails", "permitido@exemplo.com")
+    monkeypatch.setattr(
+        "app.api.v1.auth._google_claims",
+        lambda credential: {
+            "iss": "https://accounts.google.com",
+            "email": "bloqueado@exemplo.com",
+            "email_verified": True,
+        },
+    )
+
+    response = client.post("/api/v1/auth/google", json={"credential": "a" * 20})
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "email_not_allowed"
+
+
 def test_allowlist_server_side_nao_cria_usuario_para_email_bloqueado(client, session, monkeypatch):
     monkeypatch.setattr(settings, "allowed_emails", "permitido@exemplo.com")
 

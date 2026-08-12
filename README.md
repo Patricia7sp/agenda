@@ -11,7 +11,7 @@ Etapas 0 e 1 concluídas. O [spike de push no iOS](docs/spike-push-ios.md) foi v
 em iPhone real e o projeto segue como PWA (sem Capacitor).
 
 - ✅ `docker compose up` sobe Postgres + API com as migrações aplicadas
-- ✅ Auth magic link + JWT, multiusuário isolado
+- ✅ Login Google + JWT, multiusuário isolado
 - ✅ Registro de push subscriptions + envio VAPID + fallback de e-mail
 - ✅ PWA mínima instalável em `/spike` em ambiente dev — instalação, permissão, subscription e envio
   aceito pela Apple confirmados em iPhone real
@@ -37,8 +37,8 @@ npm install --prefix frontend && npm run dev --prefix frontend
 ```
 
 O app abre em `http://localhost:5173`. O Vite faz proxy de `/api` para a API na 8000,
-então não há CORS em dev. Sem provedor de e-mail configurado e com `APP_ENV=dev`,
-a tela de login mostra o link "entrar direto" — é assim que você entra sem e-mail.
+então não há CORS em dev. Para testar o login, configure `GOOGLE_CLIENT_ID` no
+backend e `VITE_GOOGLE_CLIENT_ID` no frontend.
 
 ## Estrutura
 
@@ -93,11 +93,11 @@ docker compose run --rm backend python -m app.cli vapid
 
 Cole a saída no `.env` e reinicie: `docker compose up -d backend`.
 
-### E-mail
+### Login Google
 
-Sem `RESEND_API_KEY` nem `SMTP_HOST`, os e-mails são apenas escritos no log. Com
-`APP_ENV=dev`, o magic link também volta no corpo da resposta (`dev_magic_link`)
-para você conseguir entrar sem provedor configurado. **Nunca use `APP_ENV=dev` em produção.**
+O e-mail Google precisa estar em `ALLOWED_EMAILS` quando a API está em produção.
+Para adicionar mais de uma pessoa, use uma lista separada por vírgulas. O token
+Google é validado no backend; o frontend nunca recebe um client secret.
 
 ## Spike de push (etapa 0) — como validar no iPhone
 

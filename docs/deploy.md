@@ -18,20 +18,22 @@ você. Os cinco passos abaixo são seus; o resto do repositório já está pront
 
 1. Criar as contas (Fly.io ou Railway · Cloudflare Pages ou Vercel · Supabase ou Neon).
 2. Criar o banco gerenciado e copiar a connection string.
-3. **Contratar um provedor de e-mail** — ver "O bloqueio real" abaixo.
-4. Definir os secrets no painel de cada serviço.
+3. Criar o OAuth Client ID do Google.
+4. Definir as variáveis e secrets no painel de cada serviço.
 5. Rodar `fly deploy` (ou conectar o repositório no painel).
 
-## O bloqueio real: sem e-mail, ninguém entra
+## Login Google e PWA
 
-Em produção `APP_ENV=prod`, e aí o magic link **deixa de aparecer na tela** — ele
-só chega por e-mail. Sem `RESEND_API_KEY` ou SMTP configurado, nem você nem a
-pessoa que for testar conseguem fazer login. Resolva isso **antes** de compartilhar.
+A Agenda é uma aplicação web instalável (PWA). Ela não é publicada na App Store
+nem na Google Play: no celular, a pessoa abre a URL HTTPS e usa **Adicionar à Tela
+de Início** ou **Instalar app**. O login é feito pelo Google; o backend valida a
+credencial Google e emite o JWT próprio da Agenda.
 
-O caminho mais rápido é o [Resend](https://resend.com): tier grátis de 3.000
-e-mails/mês, e para enviar de um domínio próprio é preciso verificar o domínio
-(alguns registros DNS). Sem domínio próprio, dá para começar com o remetente de
-testes do próprio Resend.
+Crie no Google Cloud um OAuth Client ID do tipo **Web application** e autorize as
+origens do frontend, por exemplo `https://agenda-4gh.pages.dev` e
+`http://localhost:5173` para desenvolvimento. Não coloque client secret no
+frontend: o `VITE_GOOGLE_CLIENT_ID` é público; a credencial recebida é validada
+no backend pelo `GOOGLE_CLIENT_ID`.
 
 ## 1. Banco
 
@@ -66,11 +68,10 @@ fly secrets set \
   VAPID_PUBLIC_KEY="..." \
   VAPID_PRIVATE_KEY="..." \
   VAPID_SUBJECT="mailto:seu@email.com" \
-  RESEND_API_KEY="re_..." \
-  MAIL_FROM="agenda@seudominio.com" \
+  GOOGLE_CLIENT_ID="...apps.googleusercontent.com" \
   FRONTEND_URL="https://agenda.pages.dev" \
   CORS_ORIGINS="https://agenda.pages.dev" \
-  ALLOWED_EMAILS="seu-email@example.com"
+  ALLOWED_EMAILS="seu-email@example.com,outro@example.com"
 ```
 
 ```bash
@@ -92,6 +93,7 @@ significa lembrete não enviado. Não ligue o auto-stop para economizar.
 - Comando de build: `npm run build`
 - Diretório de saída: `dist`
 - Variável de ambiente: `VITE_API_BASE_URL=https://agenda-api.fly.dev`
+- Variável de ambiente: `VITE_GOOGLE_CLIENT_ID=...apps.googleusercontent.com`
 
 Depois do primeiro deploy, volte na API e ajuste `FRONTEND_URL` e `CORS_ORIGINS`
 para o domínio real que o Pages gerou.
@@ -101,7 +103,7 @@ para o domínio real que o Pages gerou.
 - [ ] `/health` com `push_enabled`, `mail_enabled` e `scheduler_enabled` em `true`
 - [ ] `APP_ENV=prod` (a API se recusa a subir com `JWT_SECRET` fraco)
 - [ ] `ALLOWED_EMAILS` contém somente os e-mails autorizados
-- [ ] Login por e-mail funcionando de verdade: peça o link e confirme que chega
+- [ ] Login Google funcionando para cada e-mail em `ALLOWED_EMAILS`
 - [ ] Instalar o app no seu iPhone pela URL de produção e ativar as notificações
 - [ ] Criar uma atividade com lembrete 2 minutos à frente, fechar o app e conferir
 - [ ] Abrir o app em modo avião e ver o dia carregar do cache
@@ -114,8 +116,7 @@ opção fica escondida. Sugestão de mensagem:
 > Abra este link **no Safari**: `https://…`
 > Toque em **Compartilhar** (ícone do meio da barra), role a lista para baixo e
 > escolha **Adicionar à Tela de Início**. Abra o app pelo ícone novo, entre com
-> seu e-mail (chega um link de acesso, sem senha) e, em **⚙ Ajustes**, toque em
-> **Ativar lembretes**.
+> o Google e, em **⚙ Ajustes**, toque em **Ativar lembretes**.
 
 O próprio app cobre esse caminho: em aba do Safari no iOS ele mostra o passo a
 passo de instalação em vez de deixar a pessoa travada.

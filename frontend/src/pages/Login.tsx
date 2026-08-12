@@ -1,97 +1,99 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
-import { api, ApiError } from "../lib/api";
+import { InstallAppBanner } from "../components/InstallAppBanner";
+import { api, ApiError, setToken } from "../lib/api";
+import { loadGoogleIdentityServices, type GoogleCredentialResponse } from "../lib/google";
+import { resetQueryCache } from "../lib/queryClient";
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 
 export function Login() {
-  const [email, setEmail] = useState("");
-  const [enviado, setEnviado] = useState(false);
-  const [devLink, setDevLink] = useState<string | null>(null);
-  const [limitado, setLimitado] = useState(false);
+  const googleButton = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+  const location = useLocation();
   const [erro, setErro] = useState<string | null>(null);
-  const [enviando, setEnviando] = useState(false);
+  const [carregando, setCarregando] = useState(true);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) {
+      setErro("Login com Google ainda não foi configurado neste ambiente.");
+      setCarregando(false);
+      return undefined;
+    }
+
+    let ativo = true;
+    void loadGoogleIdentityServices()
+      .then(() => {
+        if (!ativo || !googleButton.current || !window.google) return;
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: (response: GoogleCredentialResponse) => void entrar(response),
+          auto_select: false,
+          cancel_on_tap_outside: true,
+          context: "signin",
+        });
+        googleButton.current.replaceChildren();
+        window.google.accounts.id.renderButton(googleButton.current, {
+          theme: "outline",
+          size: "large",
+          width: 360,
+          text: "continue_with",
+          shape: "pill",
+        });
+        setCarregando(false);
+      })
+      .catch((error: unknown) => {
+        if (!ativo) return;
+        setErro(error instanceof Error ? error.message : "Falha ao carregar o Google Sign-In");
+        setCarregando(false);
+      });
+
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
+  async function entrar(response: GoogleCredentialResponse) {
     setErro(null);
-    setEnviando(true);
+    setCarregando(true);
     try {
-      const r = await api.requestMagicLink(email.trim());
-      // O backend monta o link com FRONTEND_URL (localhost). Reaproveitamos só o
-      // token e apontamos para a origem atual, para o link funcionar também quando
-      // o app é aberto pelo IP da rede ou por um túnel.
-      const token = r.dev_magic_link
-        ? new URL(r.dev_magic_link).searchParams.get("token")
-        : null;
-      setDevLink(token ? `/auth/callback?token=${encodeURIComponent(token)}` : null);
-      setLimitado(r.dev_rate_limited);
-      setEnviado(true);
-    } catch (err) {
-      setErro(err instanceof ApiError ? err.message : "Falha ao enviar o link");
-    } finally {
-      setEnviando(false);
+      const result = await api.loginWithGoogle(response.credential);
+      resetQueryCache();
+      setToken(result.access_token);
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (timezone) await api.updateMe({ timezone }).catch(() => undefined);
+      const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
+      navigate(from ?? "/", { replace: true });
+    } catch (error: unknown) {
+      setErro(
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Não consegui entrar com Google",
+      );
+      setCarregando(false);
     }
   }
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-6">
-      <h1 className="text-2xl font-semibold">Agenda</h1>
-      <p className="mt-1 mb-8 text-[var(--color-ink-muted)]">
-        Seu dia em uma tela. Sem senha: enviamos um link de acesso.
+      <InstallAppBanner />
+      <p className="text-sm font-medium uppercase tracking-[0.2em] text-blue-400">Agenda</p>
+      <h1 className="mt-3 text-3xl font-semibold tracking-tight">Seu dia em uma tela.</h1>
+      <p className="mt-3 text-[var(--color-ink-muted)]">
+        Crie sua conta ou entre com o Google. Sem senha e sem links por e-mail.
       </p>
 
-      {enviado ? (
-        <div className="rounded-xl border border-[var(--color-border-subtle)] p-4">
-          {limitado ? (
-            <>
-              <p>Nenhum link novo foi gerado.</p>
-              <p className="mt-1 text-sm text-[var(--color-ink-muted)]">
-                Você atingiu o limite de links por hora para <strong>{email}</strong> — é a
-                proteção contra spam. Espere um pouco, use o último link que recebeu, ou
-                entre com outro e-mail.
-              </p>
-            </>
-          ) : (
-            <>
-              <p>Verifique seu e-mail.</p>
-              <p className="mt-1 text-sm text-[var(--color-ink-muted)]">
-                Mandamos um link para <strong>{email}</strong>. Ele vale por 15 minutos.
-              </p>
-            </>
-          )}
-          {devLink && (
-            <a href={devLink} className="mt-4 block text-blue-400 underline">
-              Modo dev — entrar direto
-            </a>
-          )}
-          <button
-            type="button"
-            onClick={() => setEnviado(false)}
-            className="mt-4 min-h-11 text-sm text-[var(--color-ink-muted)] underline"
-          >
-            Usar outro e-mail
-          </button>
-        </div>
-      ) : (
-        <form onSubmit={submit} className="flex flex-col gap-3">
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="seu@email.com"
-            autoComplete="email"
-            className="min-h-12 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-raised)] px-4 text-base text-[var(--color-ink)] placeholder:text-slate-500"
-          />
-          <button
-            type="submit"
-            disabled={enviando}
-            className="min-h-12 rounded-xl bg-blue-500 font-semibold text-white disabled:opacity-50"
-          >
-            {enviando ? "Enviando…" : "Enviar link de acesso"}
-          </button>
-          {erro && <p className="text-sm text-red-400">{erro}</p>}
-        </form>
-      )}
+      <section className="mt-8 rounded-2xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-raised)]/40 p-5">
+        <p className="text-sm text-[var(--color-ink-muted)]">Acesso seguro</p>
+        <div ref={googleButton} className="mt-4 flex min-h-11 justify-center" />
+        {carregando && !erro && (
+          <p className="mt-3 text-center text-sm text-[var(--color-ink-muted)]">Carregando…</p>
+        )}
+        {erro && <p className="mt-3 text-sm text-red-400">{erro}</p>}
+      </section>
     </div>
   );
 }

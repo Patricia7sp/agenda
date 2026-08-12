@@ -1,8 +1,12 @@
 from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
+from typing import Mapping, cast
 from urllib.parse import quote
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from google.auth import exceptions as google_auth_exceptions
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token as google_id_token
 from fastapi import APIRouter, HTTPException, status
 from sqlmodel import select
 
@@ -13,6 +17,7 @@ from app.models import LoginToken, User, utcnow
 from app.schemas import (
     MagicLinkRequest,
     MagicLinkResponse,
+    GoogleLoginRequest,
     TokenResponse,
     UserOut,
     UserUpdate,
@@ -25,6 +30,41 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # Rate limit em memória: suficiente para um processo só (uso pessoal).
 # Ao escalar para múltiplos workers, trocar por Redis ou por contagem em login_token.
 _attempts: dict[str, deque[datetime]] = defaultdict(deque)
+
+
+def _google_claims(credential: str) -> Mapping[str, object]:
+    if not settings.google_client_id:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"detail": "Login com Google não configurado", "code": "google_not_configured"},
+        )
+
+    try:
+        claims = cast(
+            Mapping[str, object],
+            google_id_token.verify_oauth2_token(
+                credential,
+                google_requests.Request(),
+                settings.google_client_id,
+            ),
+        )
+    except (ValueError, google_auth_exceptions.GoogleAuthError) as exc:
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            detail={"detail": "Credencial Google inválida", "code": "invalid_google_credential"},
+        ) from exc
+
+    if claims.get("iss") not in {"accounts.google.com", "https://accounts.google.com"}:
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            detail={"detail": "Emissor Google inválido", "code": "invalid_google_issuer"},
+        )
+    if claims.get("email_verified") is not True:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail={"detail": "A conta Google precisa ter e-mail verificado", "code": "email_not_verified"},
+        )
+    return claims
 
 
 def _rate_limited(email: str) -> bool:
@@ -70,6 +110,43 @@ def request_magic_link(payload: MagicLinkRequest, session: SessionDep) -> MagicL
     if not delivered and settings.is_dev:
         return MagicLinkResponse(dev_magic_link=link)
     return MagicLinkResponse()
+
+
+@router.post("/google", response_model=TokenResponse)
+def login_with_google(payload: GoogleLoginRequest, session: SessionDep) -> TokenResponse:
+    """Valida a credencial do Google e emite o JWT próprio da Agenda."""
+    claims = _google_claims(payload.credential)
+    raw_email = claims.get("email")
+    if not isinstance(raw_email, str):
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            detail={"detail": "Google não retornou um e-mail válido", "code": "google_email_missing"},
+        )
+
+    email = raw_email.strip().casefold()
+    if not settings.is_email_allowed(email):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail={"detail": "Este e-mail não está autorizado para a Agenda", "code": "email_not_allowed"},
+        )
+
+    user = session.exec(select(User).where(User.email == email)).first()
+    raw_name = claims.get("name")
+    name = raw_name.strip() if isinstance(raw_name, str) and raw_name.strip() else None
+    if user is None:
+        user = User(email=email, name=name, timezone=settings.default_timezone)
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+    elif user.name is None and name is not None:
+        user.name = name
+        session.add(user)
+        session.commit()
+
+    return TokenResponse(
+        access_token=create_access_token(user.id),
+        user=UserOut.model_validate(user, from_attributes=True),
+    )
 
 
 @router.post("/verify", response_model=TokenResponse)

@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     magic_link_expires_min: int = 15
     magic_link_rate_limit_per_hour: int = 3
     allowed_emails: str = ""
+    google_client_id: str = ""
 
     vapid_public_key: str = ""
     vapid_private_key: str = ""
@@ -70,6 +71,8 @@ class Settings(BaseSettings):
                 raise ValueError("JWT_SECRET precisa ter pelo menos 32 caracteres")
             if not self.allowed_email_set:
                 raise ValueError("ALLOWED_EMAILS é obrigatório em produção")
+            if not self.google_client_id:
+                raise ValueError("GOOGLE_CLIENT_ID é obrigatório em produção")
             if "*" in self.cors_origin_list:
                 raise ValueError("CORS_ORIGINS não pode usar '*' em produção")
         return self

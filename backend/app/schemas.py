@@ -10,6 +10,10 @@ class MagicLinkRequest(BaseModel):
     email: EmailStr
 
 
+class GoogleLoginRequest(BaseModel):
+    credential: str = Field(min_length=20, max_length=10000)
+
+
 class MagicLinkResponse(BaseModel):
     ok: bool = True
     # Só preenchido quando APP_ENV=dev e não há provedor de e-mail configurado.

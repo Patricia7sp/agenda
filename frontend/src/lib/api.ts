@@ -58,6 +58,13 @@ export const api = {
       { method: "POST", body: { email }, auth: false },
     ),
 
+  loginWithGoogle: (credential: string) =>
+    request<{ access_token: string; user: User }>("/auth/google", {
+      method: "POST",
+      body: { credential },
+      auth: false,
+    }),
+
   verify: (token: string) =>
     request<{ access_token: string; user: User }>("/auth/verify", {
       method: "POST",
