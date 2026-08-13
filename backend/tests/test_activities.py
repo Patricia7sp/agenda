@@ -20,6 +20,7 @@ def test_criacao_minima_aplica_defaults(client, login):
     assert a["priority"] == "normal"
     assert a["status"] == "pending"
     assert a["reminder_at"] is None
+    assert a["reminder_offset_min"] is None
     assert a["postponed_count"] == 0
 
 
@@ -39,6 +40,23 @@ def test_lembrete_com_antecedencia(client, login):
 
     lembrete = datetime.fromisoformat(a["reminder_at"]).astimezone(timezone.utc)
     assert (lembrete.hour, lembrete.minute) == (19, 45)
+    assert a["reminder_offset_min"] == 15
+
+
+def test_opcoes_de_antecedencia(client, login):
+    headers = login("opcoes@exemplo.com")
+
+    for offset, esperado in ((20, (19, 40)), (30, (19, 30)), (60, (19, 0))):
+        a = criar(
+            client,
+            headers,
+            title=f"Aviso {offset}",
+            scheduled_time="17:00",
+            reminder_offset_min=offset,
+        )
+        lembrete = datetime.fromisoformat(a["reminder_at"]).astimezone(timezone.utc)
+        assert (lembrete.hour, lembrete.minute) == esperado
+        assert a["reminder_offset_min"] == offset
 
 
 def test_lembrete_respeita_timezone_do_usuario(client, login):
@@ -100,6 +118,7 @@ def test_adiar_e_acao_nao_status(client, login):
     assert adiada["postponed_count"] == 1
     assert adiada["status"] == "pending"          # continua pendente
     assert adiada["reminder_sent"] is False       # lembrete reaberto
+    assert adiada["reminder_offset_min"] == 0
     lembrete = datetime.fromisoformat(adiada["reminder_at"]).astimezone(timezone.utc)
     assert lembrete.date() == date(2026, 8, 11)
 
@@ -119,6 +138,29 @@ def test_edicao_de_horario_recalcula_lembrete(client, login):
     assert r.json()["reminder_sent"] is False
 
 
+def test_edicao_e_adiamento_preservam_antecedencia(client, login):
+    headers = login("preserva-offset@exemplo.com")
+    a = criar(client, headers, scheduled_time="17:00", reminder_offset_min=30)
+
+    editada = client.patch(
+        f"{API}/{a['id']}", headers=headers, json={"scheduled_time": "08:00"}
+    )
+    assert editada.status_code == 200
+    assert editada.json()["reminder_offset_min"] == 30
+    lembrete = datetime.fromisoformat(editada.json()["reminder_at"]).astimezone(timezone.utc)
+    assert (lembrete.hour, lembrete.minute) == (10, 30)
+
+    adiada = client.post(
+        f"{API}/{a['id']}/postpone",
+        headers=headers,
+        json={"scheduled_date": "2026-08-11", "scheduled_time": "09:00"},
+    )
+    assert adiada.status_code == 200
+    assert adiada.json()["reminder_offset_min"] == 30
+    lembrete = datetime.fromisoformat(adiada.json()["reminder_at"]).astimezone(timezone.utc)
+    assert (lembrete.hour, lembrete.minute) == (11, 30)
+
+
 def test_remover_lembrete_na_edicao(client, login):
     headers = login("semlembrete@exemplo.com")
     a = criar(client, headers, scheduled_time="17:00", reminder_offset_min=0)
@@ -126,6 +168,7 @@ def test_remover_lembrete_na_edicao(client, login):
     r = client.patch(f"{API}/{a['id']}", headers=headers, json={"reminder_offset_min": None})
     assert r.status_code == 200
     assert r.json()["reminder_at"] is None
+    assert r.json()["reminder_offset_min"] is None
 
 
 def test_remocao(client, login):

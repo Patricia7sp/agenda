@@ -9,6 +9,7 @@ import {
   type ActivityType,
 } from "../lib/types";
 import { Sheet } from "./Sheet";
+import { ReminderOffsetField } from "./ReminderOffsetField";
 
 interface Props {
   defaultDate: string;
@@ -53,7 +54,7 @@ export function QuickCreateSheet({ defaultDate, saving, onClose, onCreate }: Pro
   const [priority, setPriority] = useState<ActivityPriority>("normal");
   const [type, setType] = useState<ActivityType>("task");
   const [description, setDescription] = useState("");
-  const [reminder, setReminder] = useState(true);
+  const [reminderOffset, setReminderOffset] = useState<number | null>(0);
   const [more, setMore] = useState(false);
   const [customDate, setCustomDate] = useState(false);
 
@@ -75,7 +76,7 @@ export function QuickCreateSheet({ defaultDate, saving, onClose, onCreate }: Pro
       priority,
       type,
       // Lembrete só existe com horário; sem horário o backend recusaria (422).
-      reminder_offset_min: time && reminder ? 0 : null,
+      reminder_offset_min: time ? reminderOffset : null,
     });
   }
 
@@ -165,18 +166,11 @@ export function QuickCreateSheet({ defaultDate, saving, onClose, onCreate }: Pro
               rows={3}
               className="rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-raised)] p-3 text-base text-[var(--color-ink)] placeholder:text-slate-500"
             />
-            <label className="flex items-center gap-3 text-sm">
-              <input
-                type="checkbox"
-                checked={reminder}
-                disabled={!time}
-                onChange={(e) => setReminder(e.target.checked)}
-                className="size-5"
-              />
-              <span className={time ? "" : "text-[var(--color-ink-muted)]"}>
-                Lembrete no horário {time ? "" : "(precisa de um horário)"}
-              </span>
-            </label>
+            <ReminderOffsetField
+              disabled={!time}
+              value={reminderOffset}
+              onChange={setReminderOffset}
+            />
           </div>
         )}
 

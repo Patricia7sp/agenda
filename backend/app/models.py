@@ -75,6 +75,7 @@ class Activity(SQLModel, table=True):
         default=ActivityStatus.pending, sa_column=pg_enum(ActivityStatus, "activity_status")
     )
     reminder_at: datetime | None = Field(default=None, sa_column=tz_column(nullable=True))
+    reminder_offset_min: int | None = Field(default=None, ge=0, le=60 * 24 * 7, nullable=True)
     reminder_sent: bool = Field(default=False, nullable=False)
     reminder_attempts: int = Field(default=0, nullable=False)
     reminder_next_attempt_at: datetime | None = Field(

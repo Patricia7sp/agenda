@@ -62,6 +62,7 @@ queryClient.setMutationDefaults(["activity", "create"], {
       priority: payload.priority ?? "normal",
       status: "pending",
       reminder_at: null,
+      reminder_offset_min: payload.reminder_offset_min ?? null,
       reminder_sent: false,
       postponed_count: 0,
       created_at: agora,

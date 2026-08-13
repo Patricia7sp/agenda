@@ -85,6 +85,7 @@ class ActivityOut(BaseModel):
     priority: ActivityPriority
     status: ActivityStatus
     reminder_at: datetime | None
+    reminder_offset_min: int | None
     reminder_sent: bool
     postponed_count: int
     created_at: datetime

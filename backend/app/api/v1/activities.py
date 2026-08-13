@@ -208,6 +208,7 @@ def create_activity(
             payload.reminder_offset_min,
             user.timezone,
         ),
+        reminder_offset_min=payload.reminder_offset_min,
         reminder_attempts=0,
         reminder_next_attempt_at=None,
         reminder_last_error=None,
@@ -245,15 +246,20 @@ def update_activity(
     # Data, hora ou lembrete mudaram → recalcular reminder_at e reabrir o envio.
     if offset_informado or "scheduled_date" in fields or "scheduled_time" in fields:
         if offset_informado:
+            activity.reminder_offset_min = offset
             activity.reminder_at = compute_reminder_at(
                 activity.scheduled_date, activity.scheduled_time, offset, user.timezone
             )
-        elif activity.reminder_at is not None and activity.scheduled_time is not None:
-            # Mantém o mesmo offset original em relação ao horário da atividade.
+        elif activity.reminder_offset_min is not None and activity.scheduled_time is not None:
+            # Mantém a antecedência escolhida quando data ou horário mudam.
             activity.reminder_at = compute_reminder_at(
-                activity.scheduled_date, activity.scheduled_time, 0, user.timezone
+                activity.scheduled_date,
+                activity.scheduled_time,
+                activity.reminder_offset_min,
+                user.timezone,
             )
         elif activity.scheduled_time is None:
+            activity.reminder_offset_min = None
             activity.reminder_at = None
         activity.reminder_sent = False
         activity.reminder_attempts = 0
@@ -296,7 +302,6 @@ def postpone_activity(
     """Adiar é AÇÃO, não status (§3): muda a data, incrementa o contador e volta a pending."""
     activity = _get_owned(session, user, activity_id)
 
-    tinha_lembrete = activity.reminder_at is not None
     activity.scheduled_date = payload.scheduled_date
     activity.scheduled_time = payload.scheduled_time
     activity.postponed_count += 1
@@ -304,11 +309,16 @@ def postpone_activity(
     activity.completed_at = None
     activity.reminder_at = (
         compute_reminder_at(
-            payload.scheduled_date, payload.scheduled_time, 0, user.timezone
+            payload.scheduled_date,
+            payload.scheduled_time,
+            activity.reminder_offset_min,
+            user.timezone,
         )
-        if tinha_lembrete
+        if activity.reminder_offset_min is not None
         else None
     )
+    if payload.scheduled_time is None:
+        activity.reminder_offset_min = None
     activity.reminder_sent = False
     activity.reminder_attempts = 0
     activity.reminder_next_attempt_at = None

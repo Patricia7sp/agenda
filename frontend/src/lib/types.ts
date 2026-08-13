@@ -12,6 +12,7 @@ export interface Activity {
   priority: ActivityPriority;
   status: ActivityStatus;
   reminder_at: string | null;
+  reminder_offset_min: number | null;
   reminder_sent: boolean;
   postponed_count: number;
   created_at: string;

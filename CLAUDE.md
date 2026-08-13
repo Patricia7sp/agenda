@@ -21,6 +21,7 @@ Loop central: abrir → ver o dia → registrar em ≤3 interações → receber
 - `Activity` é entidade única (não separar Event/Task/Reminder)
 - Adiar é AÇÃO (muda data, incrementa `postponed_count`, volta `pending`), não status
 - `reminder_at` sempre em UTC, calculado da timezone do usuário no backend
+- `reminder_offset_min` persiste a antecedência escolhida; alterar ou adiar um evento deve preservá-la
 - `scheduled_date` (date) e `scheduled_time` (time, nullable) separados — atividade sem horário é válida
 - Toda query filtrada por `user_id` do JWT — multiusuário desde o dia 1
 - Secrets só via env (`.env.example` deve estar sempre completo)

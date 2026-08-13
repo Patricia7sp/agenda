@@ -14,6 +14,7 @@ import {
   type ActivityPriority,
   type ActivityType,
 } from "../lib/types";
+import { ReminderOffsetField } from "../components/ReminderOffsetField";
 
 export function ActivityEdit() {
   const { id } = useParams();
@@ -26,7 +27,7 @@ export function ActivityEdit() {
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<ActivityPriority>("normal");
   const [type, setType] = useState<ActivityType>("task");
-  const [reminder, setReminder] = useState(false);
+  const [reminderOffset, setReminderOffset] = useState<number | null>(null);
   const [confirmando, setConfirmando] = useState(false);
 
   const update = useUpdateActivity();
@@ -41,7 +42,9 @@ export function ActivityEdit() {
     setDescription(activity.description ?? "");
     setPriority(activity.priority);
     setType(activity.type);
-    setReminder(activity.reminder_at !== null);
+    setReminderOffset(
+      activity.reminder_offset_min ?? (activity.reminder_at !== null ? 0 : null),
+    );
   }, [activity]);
 
   if (isPending) {
@@ -72,7 +75,7 @@ export function ActivityEdit() {
           description: description.trim() || null,
           priority,
           type,
-          reminder_offset_min: time && reminder ? 0 : null,
+          reminder_offset_min: time ? reminderOffset : null,
         },
       },
     );
@@ -164,18 +167,11 @@ export function ActivityEdit() {
           className="rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-raised)] p-3 text-base text-[var(--color-ink)] placeholder:text-slate-500"
         />
 
-        <label className="flex items-center gap-3 text-sm">
-          <input
-            type="checkbox"
-            checked={reminder}
-            disabled={!time}
-            onChange={(e) => setReminder(e.target.checked)}
-            className="size-5"
-          />
-          <span className={time ? "" : "text-[var(--color-ink-muted)]"}>
-            Lembrete no horário {time ? "" : "(precisa de um horário)"}
-          </span>
-        </label>
+        <ReminderOffsetField
+          disabled={!time}
+          value={reminderOffset}
+          onChange={setReminderOffset}
+        />
 
         {activity.postponed_count > 0 && (
           <p className="text-sm text-[var(--color-ink-muted)]">
