@@ -26,6 +26,7 @@ Loop central: abrir → ver o dia → registrar em ≤3 interações → receber
 - Toda query filtrada por `user_id` do JWT — multiusuário desde o dia 1
 - Secrets só via env (`.env.example` deve estar sempre completo)
 - Nunca duplicar notificação: marcar `reminder_sent` mesmo com falha parcial de envio
+- `VAPID_SUBJECT` é normalizado para URI `mailto:`; falha de push nunca pode impedir o fallback por e-mail
 
 ## Plano de construção (ordem)
 

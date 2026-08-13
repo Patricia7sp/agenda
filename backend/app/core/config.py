@@ -102,6 +102,14 @@ class Settings(BaseSettings):
         return bool(self.vapid_public_key and self.vapid_private_key)
 
     @property
+    def vapid_subject_uri(self) -> str:
+        """Normaliza o contato VAPID para uma URI aceita pelo protocolo."""
+        subject = self.vapid_subject.strip()
+        if subject.startswith(("mailto:", "https://")):
+            return subject
+        return f"mailto:{subject}"
+
+    @property
     def mail_enabled(self) -> bool:
         return bool(self.resend_api_key or self.smtp_host)
 

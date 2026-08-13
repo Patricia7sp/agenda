@@ -8,6 +8,7 @@ import logging
 import uuid
 from dataclasses import dataclass
 
+from py_vapid import VapidException
 from pywebpush import WebPushException, webpush
 from sqlmodel import Session, select
 
@@ -51,12 +52,13 @@ def send_to_user(session: Session, user_id: uuid.UUID, payload: dict[str, str]) 
                 },
                 data=json.dumps(payload),
                 vapid_private_key=settings.vapid_private_key,
-                vapid_claims={"sub": settings.vapid_subject},
+                vapid_claims={"sub": settings.vapid_subject_uri},
                 timeout=10,
             )
             sent += 1
-        except (WebPushException, OSError, ValueError) as exc:
-            status = getattr(exc.response, "status_code", None)
+        except (VapidException, WebPushException, OSError, ValueError) as exc:
+            response = getattr(exc, "response", None)
+            status = getattr(response, "status_code", None)
             if status in (404, 410):
                 session.delete(sub)
                 removed += 1

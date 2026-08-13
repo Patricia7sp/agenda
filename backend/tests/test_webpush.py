@@ -10,7 +10,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
-from py_vapid import Vapid
+from py_vapid import Vapid, VapidException
 from sqlmodel import select
 
 from app.core.config import settings
@@ -52,6 +52,7 @@ def vapid_configurado(monkeypatch):
         settings, "vapid_private_key", base64.urlsafe_b64encode(raw).decode().rstrip("=")
     )
     monkeypatch.setattr(settings, "vapid_public_key", "chave-publica-de-teste")
+    monkeypatch.setattr(settings, "vapid_subject", "mailto:testes@exemplo.com")
 
 
 def _client_keys() -> tuple[str, str]:
@@ -118,3 +119,35 @@ def test_sem_vapid_nao_envia(session, push_service, monkeypatch):
 
     assert (result.sent, result.failed, result.removed) == (0, 0, 0)
     assert recebidos == []
+
+
+def test_subject_sem_mailto_e_normalizado(session, push_service, monkeypatch):
+    recebidos.clear()
+    user = _criar_usuario_com_sub(session, f"{push_service}/ok/subject-normalizado")
+    monkeypatch.setattr(settings, "vapid_subject", "admin@exemplo.com")
+
+    result = webpush_service.send_to_user(
+        session, user.id, {"title": "Oi", "body": "corpo"}
+    )
+
+    assert result.sent == 1
+    assert result.failed == 0
+
+
+def test_erro_vapid_fica_isolado_e_nao_interrompe_pipeline(
+    session, push_service, monkeypatch
+):
+    user = _criar_usuario_com_sub(session, f"{push_service}/ok/vapid-invalido")
+
+    def assinatura_invalida(**kwargs):
+        raise VapidException("subject inválido")
+
+    monkeypatch.setattr(webpush_service, "webpush", assinatura_invalida)
+
+    result = webpush_service.send_to_user(
+        session, user.id, {"title": "Oi", "body": "corpo"}
+    )
+
+    assert result.sent == 0
+    assert result.failed == 1
+    assert result.delivered is False

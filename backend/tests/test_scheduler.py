@@ -113,6 +113,21 @@ def test_sem_dispositivo_cai_no_email(session, emails, monkeypatch):
     assert emails == [("fallback@exemplo.com", "17:00 — Ligar para Ana")]
 
 
+def test_falha_de_push_cai_no_email(session, emails, monkeypatch):
+    monkeypatch.setattr(
+        scheduler_service,
+        "send_to_user",
+        lambda *a, **k: webpush_service.PushResult(sent=0, failed=1, removed=0),
+    )
+    user = criar_usuario(session, "push-falhou@exemplo.com")
+    activity = criar_atividade(session, user, minutos=-1)
+
+    assert scheduler_service.process_due_reminders(session) == 1
+    assert emails == [("push-falhou@exemplo.com", "17:00 — Ligar para Ana")]
+    session.refresh(activity)
+    assert activity.reminder_sent is True
+
+
 def test_falha_total_reagenda_e_nao_perde_lembrete(session, monkeypatch, emails):
     """Falha de entrega mantém o lembrete pendente para retry com backoff."""
     monkeypatch.setattr(
